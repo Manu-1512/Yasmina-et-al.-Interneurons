@@ -1,0 +1,173 @@
+library(slingshot)
+library(BUSpaRse)
+library(tidyverse)
+library(tidymodels)
+library(Seurat)
+library(scales)
+library(viridis)
+library(Matrix)
+
+##########################Just testing the dynamics of GAD1 and GAD2 expression
+Integrated_data_EPO_Placebo <- readRDS("../harmony_normalized_all_data_EPO.rds")
+
+Integrated_data_EPO_Placebo_s <- subset(x = Integrated_data_EPO_Placebo, subset = Gad1 > 1 & Gad2 > 1)
+
+Integrated_data_EPO_Placebo_s <- subset(x = Integrated_data_EPO_Placebo, subset = Gad1 > 1 & Gad2 > 1, idents = "GABA")
+
+
+Integrated_data_EPO_Placebo_s <- subset(x = Integrated_data_EPO_Placebo, subset = Gad2 > 1, idents = "GABA")
+
+Integrated_data_EPO_Placebo_s <- subset(x = Integrated_data_EPO_Placebo, idents = "GABA")
+
+Integrated_data_EPO_Placebo_s <- subset(x = Integrated_data_EPO_Placebo, subset = Gad2 > 0, idents = "GABA")
+
+Integrated_data_EPO_Placebo_s <- subset(x = Integrated_data_EPO_Placebo, subset = Gad1 > 0 & Gad2 > 0, idents = "GABA")
+
+Integrated_data_EPO_Placebo_s <- subset(x = Integrated_data_EPO_Placebo, idents = "GABA")
+
+
+library(fields)
+library(KernSmooth)
+library(ROCR)
+library(parallel)
+library(DoubletFinder)
+library(remotes)
+
+
+nExp <- round(ncol(Integrated_data_EPO_Placebo) * 0.04)
+Integrated_data_EPO_Placebo_s <- doubletFinder_v3(Integrated_data_EPO_Placebo_s, pN = 0.25, pK = 0.09, nExp = nExp, PCs = 1:10)
+DF.name = colnames(Integrated_data_EPO_Placebo_s@meta.data)[grepl("DF.classification", colnames(Integrated_data_EPO_Placebo_s@meta.data))]
+DimPlot(Integrated_data_EPO_Placebo, group.by = DF.name) + NoAxes()
+DimPlot(Integrated_data_EPO_Placebo_s, group.by = DF.name) + NoAxes()
+dev.off()
+nExp <- round(ncol(Integrated_data_EPO_Placebo) * 0.08)
+
+Integrated_data_EPO_Placebo_s <- doubletFinder_v3(Integrated_data_EPO_Placebo_s, pN = 0.25, pK = 0.09, nExp = nExp, PCs = 1:10)
+
+DF.name = colnames(Integrated_data_EPO_Placebo_s@meta.data)[grepl("DF.classification", colnames(Integrated_data_EPO_Placebo_s@meta.data))]
+
+png("Doublets_UMAP_Interneurons.png",  width = 36.7, height = 20.8, units = "cm", res = 600, pointsize = 12)
+DimPlot(Integrated_data_EPO_Placebo_s, group.by = DF.name) + NoAxes()
+dev.off()
+
+
+Integrated_data_EPO_Placebo_s <- subset(x = Integrated_data_EPO_Placebo, idents = "GABA")
+
+
+Harmonised_data_EPO_Placebo <- NormalizeData(Integrated_data_EPO_Placebo_s) %>% FindVariableFeatures() %>% ScaleData() %>% RunPCA(verbose = FALSE)
+library(harmony)
+Harmonised_data_EPO_Placebo <- RunHarmony(Harmonised_data_EPO_Placebo, group.by.vars = "orig.ident")
+Harmonised_data_EPO_Placebo <- FindNeighbors(Harmonised_data_EPO_Placebo, reduction = "harmony", dims = 1:15)
+Harmonised_data_EPO_Placebo <- FindClusters(object = Harmonised_data_EPO_Placebo, resolution = 0.5, graph.name="RNA_snn")
+Harmonised_data_EPO_Placebo <- RunUMAP(Harmonised_data_EPO_Placebo, reduction = "harmony", dims = 1:15)
+
+png("harmony_Interneurons_samples_UMAP_split_by_ident_celltypes.png",  width = 24.7, height = 20.8, units = "cm", res = 600, pointsize = 12)
+DimPlot(Harmonised_data_EPO_Placebo, reduction = "umap", label=T, label.size = 10, group.by = c("celltypes", "ident")) + theme(legend.position="none")
+dev.off()
+
+prop.table(table(Idents(Harmonised_data_EPO_Placebo), Harmonised_data_EPO_Placebo$type), margin = 2)*100
+
+int = (Harmonised_data_EPO_Placebo)
+
+int@misc$pyra.markers <- FindAllMarkers(int, only.pos = TRUE, min.pct = 0.5, logfc.threshold = 0.5)
+
+mark <- int@misc$markers
+prop.table(table(Idents(Harmonised_data_EPO_Placebo), Harmonised_data_EPO_Placebo$type), margin = 2)*100
+
+
+
+p1 <- plot_density(int, "Gad1", reduction="umap", size=0.6) + scale_color_viridis_c(option="inferno", direction=-1)
+p2 <- plot_density(int, "Gad2", reduction="umap", size=0.6) + scale_color_viridis_c(option="inferno", direction=-1)
+p3 <- plot_density(int, "Plp1", reduction="umap", size=0.6) + scale_color_viridis_c(option="inferno", direction=-1)
+p4 <- plot_density(int, "Tgfbr1", reduction="umap", size=0.6) + scale_color_viridis_c(option="inferno", direction=-1)
+png("interneurons_enigmatic_Plp1_TGFr1.png",  width = 28.7, height = 28.8, units = "cm", res = 600, pointsize = 12)
+p1 + p2 + p3 +p4
+dev.off()
+
+mark <- int@misc$pyra.markers
+prop.table(table(Idents(int), int$type), margin = 2)*100
+
+
+p1 <- plot_density(int, "Sst", reduction="umap", size=0.6) + scale_color_viridis_c(option="inferno", direction=-1)
+p2 <- plot_density(int, "Vip", reduction="umap", size=0.6) + scale_color_viridis_c(option="inferno", direction=-1)
+p3 <- plot_density(int, "Calb1", reduction="umap", size=0.6) + scale_color_viridis_c(option="inferno", direction=-1)
+p4 <- plot_density(int, "Calb2", reduction="umap", size=0.6) + scale_color_viridis_c(option="inferno", direction=-1)
+png("interneurons_Sst_Vip_Calb1_Calb2.png",  width = 28.7, height = 28.8, units = "cm", res = 600, pointsize = 12)
+p1 + p2 + p3 +p4
+dev.off()
+
+
+p1 <- plot_density(int, "Pvalb", reduction="umap", size=0.6) + scale_color_viridis_c(option="inferno", direction=-1)
+p2 <- plot_density(int, "Npy", reduction="umap", size=0.6) + scale_color_viridis_c(option="inferno", direction=-1)
+p3 <- plot_density(int, "Cacna2d1", reduction="umap", size=0.6) + scale_color_viridis_c(option="inferno", direction=-1)
+p4 <- plot_density(int, "Lhx6", reduction="umap", size=0.6) + scale_color_viridis_c(option="inferno", direction=-1)
+png("interneurons_Pvalb_Npy_Cacna2d_lhx6.png",  width = 28.7, height = 28.8, units = "cm", res = 600, pointsize = 12)
+p1 + p2 + p3 +p4
+dev.off()
+
+
+p1 <- plot_density(int, "Erbb4", reduction="umap", size=0.6) + scale_color_viridis_c(option="inferno", direction=-1)
+p2 <- plot_density(int, "Tac1", reduction="umap", size=0.6) + scale_color_viridis_c(option="inferno", direction=-1)
+p3 <- plot_density(int, "C1q1l1", reduction="umap", size=0.6) + scale_color_viridis_c(option="inferno", direction=-1)
+p4 <- plot_density(int, "Ndnf", reduction="umap", size=0.6) + scale_color_viridis_c(option="inferno", direction=-1)
+png("interneurons_Errb4_Tac1_C1q1l1_Ndnf.png",  width = 28.7, height = 28.8, units = "cm", res = 600, pointsize = 12)
+p1 + p2 + p3 +p4
+dev.off()
+
+
+my_genes <- c("Sst", "Vip", "Nos1","Npy","Cort","Zbtb20","Serpine2","Mgat4c","Pnoc", "Calb1", 
+"Pvalb", "Rgs10","Tac1","Cpne5", "Cacna2d1", "Lhx6", "Reln","Vwa5a",
+"Ndnf", "Calb2","Cryab", "Cck", "Cxcl14","Tac2", "Crh", "Pcp4", "Igfbp4", "Cntnap5a")
+
+
+ png("Interneurons_DotPlot_first_clustering_V2.png",  width = 53.7, height = 24.8, units = "cm", res = 600, pointsize = 12)
+DotPlot(int, features=my_genes, scale.min=0, scale.max=50, dot.min=0) + scale_colour_gradient2(low = "lightblue", high = "darkred") + RotatedAxis()
+dev.off()
+
+library(Seurat)
+ Integrated_data_EPO_Placebo <- readRDS("Harmonised_Interneurons_seurat_clusters.rds")
+library(slingshot)
+library(BUSpaRse)
+ library(tidyverse)
+library(scales)
+library(viridis)
+library(Matrix)
+library(fields)
+library(KernSmooth)
+
+library(ROCR)
+library(parallel)
+library(DoubletFinder)
+library(remotes)
+Integrated_data_EPO_Placebo[["percent.mt"]] <- PercentageFeatureSet(Integrated_data_EPO_Placebo, pattern = "^mt")
+
+Integrated_data_EPO_Placebo <- subset(Integrated_data_EPO_Placebo, subset = nFeature_RNA 200 & nFeature_RNA < 7500 & percent.mt < 5)
+
+ Integrated_data_EPO_Placebo <- NormalizeData(Integrated_data_EPO_Placebo, normalization.method = "LogNormalize", scale.factor = 10000)
+ 
+ Integrated_data_EPO_Placebo <- FindVariableFeatures(Integrated_data_EPO_Placebo, selection.method = "vst", nfeatures = 2000)
+all.genes <- rownames(Integrated_data_EPO_Placebo)
+Integrated_data_EPO_Placebo <- ScaleData(Integrated_data_EPO_Placebo, features = all.genes)
+Integrated_data_EPO_Placebo <- RunPCA(Integrated_data_EPO_Placebo, features = VariableFeatures(object = Integrated_data_EPO_Placebo))
+
+library(harmony)
+Harmonised_data_EPO_Placebo <- RunHarmony(Integrated_data_EPO_Placebo, group.by.vars = "orig.ident")
+ Harmonised_data_EPO_Placebo <- FindNeighbors(Harmonised_data_EPO_Placebo, reduction = "harmony", dims = 1:15)
+ 
+ Harmonised_data_EPO_Placebo <- FindClusters(object = Harmonised_data_EPO_Placebo, resolution = 0.5, graph.name="RNA_snn")
+ 
+ Harmonised_data_EPO_Placebo <- RunUMAP(Harmonised_data_EPO_Placebo, reduction = "harmony", dims = 1:15)
+ 
+ DimPlot(Harmonised_data_EPO_Placebo, reduction = "umap", label=T, label.size = 5, label.box=T,  group.by = c("celltypes", "ident")) + theme(legend.position="none")
+dev.off()
+
+cluster15.markers <- FindMarkers(Integrated_data_EPO_Placebo, ident.1 = 15, min.pct = 0.25)
+
+prop.table(table(Idents(Harmonised_data_EPO_Placebo), Harmonised_data_EPO_Placebo$type), margin = 2)*100
+
+
+mark <- FindAllMarkers(Harmonised_data_EPO_Placebo, only.pos = TRUE, min.pct = 0.5, logfc.threshold = 0.5)
+
+
+
+
