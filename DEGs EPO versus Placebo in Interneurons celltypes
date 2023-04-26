@@ -1,0 +1,105 @@
+library(scater)
+library(Seurat)
+library(tidyverse)
+library(cowplot)
+library(Matrix.utils)
+library(edgeR)
+library(dplyr)
+library(magrittr)
+library(Matrix)
+library(purrr)
+library(reshape2)
+library(S4Vectors)
+library(tibble)
+library(SingleCellExperiment)
+library(pheatmap)
+library(apeglm)
+library(png)
+library(DESeq2)
+library(RColorBrewer)
+
+pbmc <- readRDS("../Annotated_Interneurons_Valentines_day.rds")
+levels(pbmc)
+check <- AggregateExpression(pbmc)
+head(check)
+head(check$RNA)
+levels(pbmc)
+check <- subset(pbmc, idents = c("Cck_R-LM border","Cck_Non-border"))
+cck <- AggregateExpression(check)
+cck <- as.matrix(cck$RNA)
+head(cck)
+cck <- round(cck)
+head(cck)
+library(DESeq2)
+id <- colnames(cck)
+dex <- c(rep("control", 6), rep("KD", 6))
+celltype <- rep("ESC", 6)
+metaData <- data.frame(id, dex, celltype)
+metaData
+row.names(metaData) <- metaData$id
+metaData
+countData <- cck
+class(countData)
+countData$genes <- row.names(countData)
+head(countData)
+head(cck)
+countData <- as.matrix(cck)
+head(countData)
+countData$genes <- row.names(countData)
+countData <- as.matrix(cck)
+dds <- DESeqDataSetFromMatrix(countData=countData, 
+                              colData=metaData, 
+                              design= ~ dex, tidy = TRUE)
+dds$dex <- factor(dds$dex, levels = c("control","KD"))
+head(countData)
+countData <- as.data.frame(countData)
+head(countData)
+countData$genes <- row.names(countData)
+head(countData)
+countData <- countData[,c(13,1:12)]
+metaData
+dds <- DESeqDataSetFromMatrix(countData=countData, 
+                              colData=metaData, 
+                              design= ~ dex, tidy = TRUE)
+dds$dex <- factor(dds$dex, levels = c("control","KD"))
+dds <- DESeq(dds)
+res <- results(dds)
+res <- results(dds, contrast=c("dex","control","KD"))
+resultsNames(dds)
+resLFC <- lfcShrink(dds, coef="dex_KD_vs_control", type="apeglm")
+resLFC
+resLFC <- lfcShrink(dds, coef="dex_KD_vs_control")
+res
+resOrdered <- res[order(res$pvalue),]
+head(resOrdered)
+head(resOrdered, n=100)
+norm_counts <- counts(dds, normalized=T)
+head(norm_counts)
+norm_counts_filt <- norm_counts[apply(norm_counts, 1, function(row){any(row>5)}),]
+
+savehistory("DEGs_first_attempt.Rhistory")
+
+
+
+pbmc$celltypeCondition <- (paste(Idents(pbmc),pbmc@meta.data$type, sep="_"))
+pbmc$celltypes <- Idents(pbmc)
+Idents(pbmc) <- pbmc$celltypeCondition
+
+pvalb_basket.markers <- FindMarkers(pbmc, ident.1 = "Pvalb_Basket_cells_A_Samples", ident.2 = "Pvalb_Basket_cells_B_Samples", test.use="bimod")
+trilaminar.markers <- FindMarkers(pbmc, ident.1 = "Trilaminar_cells_A_Samples", ident.2 = "Trilaminar_cells_B_Samples", test.use="bimod")
+sst_bp.markers <- FindMarkers(pbmc, ident.1 = "Sst_Backprojection_A_Samples", ident.2 = "Sst_Backprojection_B_Samples", test.use="bimod")
+sst_olm.markers <- FindMarkers(pbmc, ident.1 = "Sst_O-LM_A_Samples", ident.2 = "Sst_O-LM_B_Samples", test.use="bimod")
+cck_nonborder.markers <- FindMarkers(pbmc, ident.1 = "Cck_Non-border_A_Samples", ident.2 = "Cck_Non-border_B_Samples", test.use="bimod")
+cck_border.markers <- FindMarkers(pbmc, ident.1 = "Cck_R-LM border_A_Samples", ident.2 = "Cck_R-LM border_B_Samples", test.use="bimod")
+
+cck_border.markers_test <- FindMarkers(pbmc, ident.1 = "Cck_R-LM border_A_Samples", ident.2 = "Cck_R-LM border_B_Samples", test.use="bimod", features=row.names(pbmc))
+
+write.table(cck_border.markers, "cck_border.markers.tsv", row.names=T, col.names=NA, sep="\t", dec=".", quote=F)
+write.table(cck_nonborder.markers, "cck_nonborder.markers.tsv", row.names=T, col.names=NA, sep="\t", dec=".", quote=F)
+write.table(choli.markers, "choli.markers.tsv", row.names=T, col.names=NA, sep="\t", dec=".", quote=F)
+write.table(pvalb_basket.markers, "pvalb_basket.markers.tsv", row.names=T, col.names=NA, sep="\t", dec=".", quote=F)
+write.table(pvalb_bistrt.markers, "pvalb_bistrt.markers.tsv", row.names=T, col.names=NA, sep="\t", dec=".", quote=F)
+write.table(sst_bp.markers, "sst_bp.markers.tsv", row.names=T, col.names=NA, sep="\t", dec=".", quote=F)
+write.table(sst_olm.markers, "sst_olm.markers.tsv", row.names=T, col.names=NA, sep="\t", dec=".", quote=F)
+write.table(trilaminar.markers, "trilaminar.markers.tsv", row.names=T, col.names=NA, sep="\t", dec=".", quote=F)
+savehistory("Interneurons_before_restarting_DEGs.Rhistory")
